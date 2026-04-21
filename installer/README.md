@@ -1,22 +1,22 @@
 # freedom-pi installer
 
-Automated version of the full README setup. Turns a fresh Raspberry Pi OS Lite install into a working router with Pi-hole, hostapd, and firewall in two phases (interactive prompt + reboot + automatic finish).
+Automated version of the big README. Takes a fresh Raspberry Pi OS Lite install and turns it into a working router with Pi-hole, WiFi AP, and firewall. Two phases, one reboot in the middle, rest is hands off.
 
-## Requirements
+## What you need
 
-- Raspberry Pi 5 (any RAM size)
-- Fresh Raspberry Pi OS Lite (64-bit), SSH enabled, user set up via Raspberry Pi Imager
-- UGREEN 2.5 GbE USB ethernet adapter plugged into a blue USB 3.0 port
-- Panda PAU0F AXE3000 (or compatible) USB WiFi stick plugged into the other blue USB 3.0 port (optional, falls back to built-in WiFi)
-- Internet access on the Pi (either via built-in ethernet to your existing network, or USB ethernet)
+- Raspberry Pi 5 (any RAM)
+- Fresh Raspberry Pi OS Lite (64-bit) with SSH on and a user set up via the Pi Imager
+- UGREEN 2.5 GbE USB ethernet plugged into a blue USB 3.0 port
+- Panda PAU0F AXE3000 USB WiFi (or keep the Pi built-in, installer handles both)
+- Internet on the Pi during install (WAN cable to your modem, or the built-in ethernet plugged into your existing network)
 
-## How to run
+## Run it
 
 On your Mac:
 
 ```bash
-scp -r installer freedom@<pi>:~/
-ssh freedom@<pi>
+scp -r installer freedompi@<pi-ip>:~/
+ssh freedompi@<pi-ip>
 ```
 
 On the Pi:
@@ -25,93 +25,107 @@ On the Pi:
 sudo ~/installer/install.sh
 ```
 
-Follow the prompts. Default values work for most setups.
+Follow the prompts. Defaults work for most setups.
 
-## What happens
+## What it does
 
-### Phase 1 (interactive, about 5 minutes)
+### Phase 1 (about 5 min, you answer prompts)
 
-1. Asks for SSID, WiFi password, country code, subnets, Pi-hole admin password
-2. Detects USB adapters and WiFi radios
-3. Confirms which MAC belongs to which device
-4. Installs `dhcpcd5`, `hostapd`, `iptables-persistent`, `curl`
-5. Disables NetworkManager, enables dhcpcd
-6. Writes `.link` files to pin interface names (`eth1` UGREEN, `wlan0` Panda, `wlan_onboard` built-in WiFi)
-7. Writes dhcpcd static IPs
-8. Writes sysctl tuning (`99-router.conf`)
-9. Writes iptables rules and saves them
-10. Sets WiFi country code
-11. Writes `hostapd.conf` (Panda or built-in variant)
-12. Installs the phase 2 oneshot
-13. Updates initramfs (so `.link` files take effect)
-14. Reboots
+1. Asks for SSID, WiFi password, country, subnets, Pi-hole admin password
+2. Finds your USB ethernet and WiFi radios by MAC
+3. `apt install` the packages (dhcpcd5, hostapd, iptables-persistent, curl)
+4. Kills NetworkManager, turns on dhcpcd
+5. Writes `.link` files to lock interface names (`eth1` UGREEN, `wlan0` Panda, `wlan_onboard` for built-in WiFi if you have a Panda)
+6. Writes dhcpcd static IPs
+7. Writes sysctl tuning
+8. Writes iptables rules and saves them
+9. Sets your WiFi country code
+10. Writes hostapd config (Panda or built-in variant)
+11. Stages the phase 2 oneshot
+12. `update-initramfs` so the `.link` files kick in
+13. Reboots
 
-### Phase 2 (automatic, about 5 minutes)
+### Phase 2 (about 5 min, hands off)
 
-Runs once on first boot after phase 1, via a systemd oneshot service.
+Runs once automatically on first boot. Installs Pi-hole, patches its config, then deletes itself.
 
-1. Waits for `wlan0` to come up with its static IP
-2. Installs Pi-hole unattended (with pre-seeded `setupVars.conf`)
-3. Sets the Pi-hole admin password
-4. Patches `/etc/pihole/pihole.toml`:
-   - `listeningMode` goes from `"LOCAL"` to `"ALL"`
-   - `[dhcp]` block: `active = true`, start/end/router set to WiFi subnet
+1. Waits for `wlan0` to come up at its static IP
+2. Waits for `eth1` DHCP lease and for DNS to actually resolve (otherwise curl dies with "could not resolve host")
+3. Installs Pi-hole unattended
+4. Sets the admin password
+5. Patches `/etc/pihole/pihole.toml`:
+   - `listeningMode` from `LOCAL` to `ALL`
+   - `[dhcp]` block active with your WiFi DHCP range
    - `dnsmasq_lines` set to serve wired LAN DHCP on `eth0`
-5. Restarts `pihole-FTL`
-6. Disables and removes its own systemd unit (self-destruct)
+6. Restarts `pihole-FTL`
+7. Disables and removes its own systemd unit (self-destruct)
 
-Logs go to `/var/log/freedom-pi-phase2.log`.
+Phase 2 logs to `/var/log/freedom-pi-phase2.log`.
 
 ## File layout
 
 ```
 installer/
-├── install.sh                         # phase 1 entry point
+├── install.sh                     # phase 1 entry
 ├── lib/
-│   └── common.sh                      # shared bash helpers
+│   └── common.sh                  # helpers (prompts, MAC detection, templating)
 ├── configs/
-│   ├── 99-router.conf                 # sysctl
-│   ├── dhcpcd.conf.append             # {{LAN_GATEWAY}}, {{WIFI_GATEWAY}}
-│   ├── 10-eth1.link                   # {{UGREEN_MAC}}
-│   ├── 20-wlan0.link                  # {{PANDA_MAC}}
-│   ├── 20-wlan-onboard.link           # {{BUILTIN_WIFI_MAC}}
-│   ├── hostapd-panda.conf             # {{SSID}}, {{COUNTRY_CODE}}, {{WPA_PASSPHRASE}}
-│   ├── hostapd-builtin.conf           # built-in Pi WiFi variant
-│   ├── hostapd-default                # /etc/default/hostapd
-│   ├── unblock-rfkill.conf            # hostapd systemd drop-in
-│   └── rules.v4                       # iptables rules
+│   ├── 99-router.conf             # sysctl
+│   ├── dhcpcd.conf.append         # {{LAN_GATEWAY}}, {{WIFI_GATEWAY}}
+│   ├── 10-eth1.link               # {{UGREEN_MAC}}
+│   ├── 20-wlan0.link              # {{PANDA_MAC}}
+│   ├── 20-wlan-onboard.link       # {{BUILTIN_WIFI_MAC}}
+│   ├── hostapd-panda.conf         # {{SSID}}, {{COUNTRY_CODE}}, {{WPA_PASSPHRASE}}
+│   ├── hostapd-builtin.conf       # built-in Pi WiFi variant
+│   ├── hostapd-default            # /etc/default/hostapd
+│   ├── unblock-rfkill.conf        # hostapd systemd drop-in (fixes USB WiFi soft block)
+│   └── rules.v4                   # iptables rules
 └── phase2/
-    ├── phase2.sh                      # runs once on first boot after reboot
-    └── freedom-pi-phase2.service      # systemd oneshot unit
+    ├── phase2.sh                  # runs on first boot
+    └── freedom-pi-phase2.service  # oneshot unit, self-destructs
 ```
 
-## Troubleshooting
+## When things break
 
-### Phase 1 failed
+### Phase 1 died partway
 
-Re-run `sudo ~/installer/install.sh`. It's mostly idempotent. The dhcpcd.conf append guards against double-writing. Other config files get overwritten, which is fine.
+Just re-run it:
 
-### Phase 2 failed or didn't run
+```bash
+sudo ~/installer/install.sh
+```
 
-Check the log:
+Mostly idempotent. The dhcpcd.conf append is guarded against double writes. Other configs get overwritten cleanly.
+
+### Phase 2 didn't finish
+
+Check the log first:
 
 ```bash
 sudo cat /var/log/freedom-pi-phase2.log
-sudo journalctl -u freedom-pi-phase2
+sudo journalctl -u freedom-pi-phase2 --no-pager
 ```
 
-Run manually:
+If it bailed on DNS or network, wait a minute and re-run manually:
 
 ```bash
-sudo /etc/freedom-pi/phase2.sh
+sudo systemctl reset-failed freedom-pi-phase2
+sudo systemctl start freedom-pi-phase2
 ```
 
-### Want to start over
+If it's still busted, run it by hand to see the live output:
 
-Flash a fresh SD card. The installer touches too much system state for a clean rollback.
+```bash
+sudo bash -x /etc/freedom-pi/phase2.sh
+```
 
-## Known gotchas
+### You want to start over
 
-- NetworkManager gets disabled mid-install, which may drop your SSH session briefly. Reconnect and re-run if needed.
-- Pi-hole's install script downloads a lot. Make sure WAN (eth1 via modem, or wired LAN via existing network) is plugged in before phase 2.
-- If your ISP router uses `192.168.1.x` already, change the LAN subnet prompt to something like `192.168.10` to avoid collision.
+Reflash the SD card. The installer changes too many system files for a clean uninstall.
+
+## Stuff to know before running
+
+- When NetworkManager gets killed, any SSH over WiFi drops. Use wired SSH (eth1 via your existing switch) so your session survives.
+- Pi-hole's installer pulls a lot of stuff. Phase 2 bails if WAN isn't up, so make sure your modem cable is plugged in to `eth1` before you reboot out of phase 1.
+- If your current home network already uses `192.168.1.x`, don't use that as the LAN subnet prompt or you'll get a collision. Use `192.168.10` or `192.168.50`.
+- Admin password goes into `/etc/freedom-pi/install.conf` briefly between phase 1 and phase 2, escaped with `printf %q`. Phase 2 redacts it after use. File is `chmod 600 root:root`.

@@ -4,17 +4,17 @@ Turning a Pi 5 into a real home router. One port is the internet side (WAN), ano
 
 About 45 minutes start to finish. Do not skip steps, the order matters.
 
-## Quick install (automated)
+## Don't wanna read? Run this
 
-On a fresh Raspberry Pi OS Lite install, run:
+On a fresh Raspberry Pi OS Lite install:
 
 ```bash
 bash <(curl -sSL https://protocol.swizsecurity.com/freedom/bootstrap.sh)
 ```
 
-That runs the two-phase installer, which covers everything in this README. See [installer/README.md](installer/README.md) for what it does and how to recover if it fails.
+That pulls the installer and runs it. Two phases, one reboot, about 10 minutes total. Full docs on what it does and how to recover if it dies at [installer/README.md](installer/README.md).
 
-Prefer the manual walkthrough below if you want to understand what each step does.
+Rest of this README is the manual walkthrough if you'd rather do it by hand and understand every step.
 
 ## Contents
 
