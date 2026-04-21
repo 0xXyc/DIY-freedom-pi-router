@@ -1,0 +1,18 @@
+# macOS
+.DS_Store
+._*
+
+# editor
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# local state (never commit install state that may contain secrets)
+install.conf
+*.key
+*.pem
+
+# build/test artifacts
+*.log
+*.tmp

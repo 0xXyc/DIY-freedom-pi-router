@@ -1,0 +1,5 @@
+[Match]
+MACAddress={{BUILTIN_WIFI_MAC}}
+
+[Link]
+Name=wlan_onboard

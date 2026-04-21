@@ -1,0 +1,16 @@
+[Unit]
+Description=freedom-pi phase 2 installer (one-shot, self-destructs on success)
+After=network-online.target hostapd.service
+Wants=network-online.target
+ConditionPathExists=/etc/freedom-pi/install.conf
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+ExecStart=/etc/freedom-pi/phase2.sh
+StandardOutput=append:/var/log/freedom-pi-phase2.log
+StandardError=append:/var/log/freedom-pi-phase2.log
+TimeoutStartSec=600
+
+[Install]
+WantedBy=multi-user.target

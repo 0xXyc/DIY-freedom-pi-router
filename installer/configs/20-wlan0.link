@@ -1,0 +1,5 @@
+[Match]
+MACAddress={{PANDA_MAC}}
+
+[Link]
+Name=wlan0

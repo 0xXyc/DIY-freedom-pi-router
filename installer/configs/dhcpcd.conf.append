@@ -1,0 +1,8 @@
+
+# === freedom-pi router config ===
+interface eth0
+static ip_address={{LAN_GATEWAY}}/24
+
+interface wlan0
+static ip_address={{WIFI_GATEWAY}}/24
+nohook wpa_supplicant

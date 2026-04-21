@@ -1,0 +1,5 @@
+[Match]
+MACAddress={{UGREEN_MAC}}
+
+[Link]
+Name=eth1
