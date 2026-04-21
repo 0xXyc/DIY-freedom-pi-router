@@ -2,10 +2,10 @@
 # freedom-pi bootstrap, fetches the installer and runs it
 #
 # usage (on a fresh Raspberry Pi OS Lite install):
-#   bash <(curl -sSL https://protocol.swizsecurity.com/freedom/bootstrap.sh)
+#   bash <(curl -sSL https://protocol.swizsecurity.com/diy-pi-router/bootstrap.sh)
 #
 # or:
-#   curl -sSL https://protocol.swizsecurity.com/freedom/bootstrap.sh -o /tmp/bootstrap.sh && bash /tmp/bootstrap.sh
+#   curl -sSL https://protocol.swizsecurity.com/diy-pi-router/bootstrap.sh -o /tmp/bootstrap.sh && bash /tmp/bootstrap.sh
 
 set -euo pipefail
 

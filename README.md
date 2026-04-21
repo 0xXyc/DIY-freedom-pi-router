@@ -13,7 +13,7 @@ One command sets the whole thing up on a fresh Raspberry Pi OS Lite SD card.
 On a fresh Raspberry Pi OS Lite install with SSH on and the UGREEN plugged in:
 
 ```bash
-bash <(curl -sSL https://protocol.swizsecurity.com/freedom/bootstrap.sh)
+bash <(curl -sSL https://protocol.swizsecurity.com/diy-pi-router/bootstrap.sh)
 ```
 
 That pulls the installer from this repo and runs it. Two phases, one reboot in the middle, about 10 minutes total. Answer the prompts (SSID, passwords, subnets) and it's off.
