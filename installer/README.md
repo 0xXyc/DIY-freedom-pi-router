@@ -27,6 +27,35 @@ sudo ~/installer/install.sh
 
 Follow the prompts. Defaults work for most setups.
 
+## If your SSH drops, use tmux
+
+Phase 1 kills NetworkManager partway through, which can blip your SSH session. If you're SSH'd in over WiFi, it drops and never comes back until after the Pi reboots. The install dies with it.
+
+Wrap the install in tmux so it keeps running even if your SSH dies:
+
+```bash
+sudo apt install -y tmux          # if not already installed
+tmux new -s inst                  # new session called "inst"
+sudo ~/installer/install.sh       # run inside tmux
+```
+
+If the SSH session drops, reconnect and reattach:
+
+```bash
+ssh freedompi@<pi-ip>
+tmux attach -t inst
+```
+
+You're back exactly where you left off, prompts and all.
+
+Other useful bits:
+
+- `Ctrl-b d` detaches from the session without killing it (so you can SSH out and come back later)
+- `tmux ls` lists all sessions
+- `tmux kill-session -t inst` cleans up when you're done
+
+If you SSH in over a wired path (UGREEN plugged into a LAN port upstream, DHCP'd IP in the 192.168.x range), tmux is less critical because eth1 keeps its DHCP lease across the NetworkManager kill. Over WiFi, tmux is your safety net.
+
 ## What it does
 
 ### Phase 1 (about 5 min, you answer prompts)
