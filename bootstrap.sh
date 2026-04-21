@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-REPO_URL="https://github.com/0xXyc/freedom-pi/archive/refs/heads/main.tar.gz"
+REPO_URL="https://github.com/0xXyc/DIY-freedom-pi-router/archive/refs/heads/main.tar.gz"
 TMPDIR="$(mktemp -d -t freedom-pi-XXXXXX)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
