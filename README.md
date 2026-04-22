@@ -54,11 +54,12 @@ Real speeds on my box: 931 Mbps wired, 540 to 600 Mbps on WiFi 6 clients. ~$55 t
 
 1. Asks for SSID, WiFi password, country, subnets, Pi-hole admin password
 2. Finds your USB ethernet and WiFi radios by MAC, confirms which is which
-3. `apt install`s the packages (dhcpcd5, hostapd, iptables-persistent, curl)
+3. `apt install`s the packages (dhcpcd5, hostapd, iptables-persistent, curl, fail2ban, unattended-upgrades)
 4. Kills NetworkManager, switches to dhcpcd
 5. Writes `.link` files to lock interface names
-6. Writes dhcpcd static IPs, sysctl tuning, iptables rules, hostapd config
-7. Stages the phase 2 oneshot and reboots
+6. Writes dhcpcd static IPs, sysctl tuning, iptables v4 + v6 rules, hostapd config
+7. Hardens the host: SSH key-only, root login off, `MaxAuthTries 3`, fail2ban watching sshd, automatic security updates on
+8. Stages the phase 2 oneshot and reboots
 
 ### Phase 2 (about 5 min, hands off)
 
@@ -101,6 +102,30 @@ Nothing the installer can fix on your other devices. Heads up for when you're tr
 - **iCloud Private Relay hides DNS failures on iPhones.** If Pi-hole is broken, Safari still loads because Apple tunnels its own DNS. Phone looks fine, Pi-hole sees zero queries. Turn Private Relay off in Settings to confirm.
 - **macOS caches manual DNS.** If any interface has manual DNS set in System Settings, it overrides DHCP. Clear with `sudo networksetup -setdnsservers "Interface Name" "Empty"`. Check with `scutil --dns | grep -A 3 "resolver #1"`, should point at your LAN gateway, not `1.1.1.1`.
 - **Windows hangs onto old DHCP leases.** After going inline, run `ipconfig /release` then `ipconfig /renew` in an admin PowerShell.
+
+## Security out of the box
+
+Out of the box the installer locks the Pi down so you're not exposing a router to the internet with factory defaults.
+
+### Firewall
+
+- v4 INPUT defaults to DROP. LAN (`eth0`) and WiFi (`wlan0`) get the usual ports (SSH, DNS, DHCP, HTTP, HTTPS, ICMP). WAN (`eth1`) accepts nothing unsolicited, only return traffic for connections your LAN started.
+- v6 INPUT defaults to DROP too. That matters because IPv6 has no NAT, so every device behind your modem typically gets its own public address. Without a v6 firewall, the Pi's SSH and Pi-hole admin would be reachable from the whole v6 internet.
+- LAN and WiFi subnets aren't bridged. A compromised WiFi device can't touch your wired machines without going back through the Pi.
+
+### Host
+
+- SSH: key-only, root logins off, `MaxAuthTries 3`. If the installing user has no `authorized_keys` file the installer leaves password auth alone, so you can't lock yourself out.
+- `fail2ban` is running with the stock sshd jail.
+- `unattended-upgrades` is running. Security patches apply on their own.
+- Kernel: `rp_filter` anti-spoof, SYN cookies on, source-routed packets dropped, ICMP redirects ignored, martians logged to dmesg.
+
+### Stuff to do yourself
+
+- If you picked a weak Pi-hole admin password, change it.
+- The default leaves v6 forwarding off, so LAN clients don't get public v6 addresses. If you want your clients on v6, you have to set up downstream prefix delegation yourself.
+
+To verify: from your phone on cellular (WiFi off), try `ssh <your public WAN IP>` and `curl http://[<your Pi's public v6 addr>]/admin/`. Both should time out.
 
 ## What this unlocks
 

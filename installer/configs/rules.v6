@@ -1,0 +1,19 @@
+# IPv6 firewall.
+#
+# Your ISP probably hands out a routable v6 prefix to the modem, and the
+# modem gives every device behind it a public v6 address. No NAT in v6.
+# Without these rules your Pi's SSH, DNS, and Pi-hole admin page are
+# reachable from the whole v6 internet.
+#
+# Default deny inbound, keep just ICMPv6 (v6 stops working without it)
+# and the DHCPv6 client port. v6 forwarding is off in sysctl so LAN
+# clients aren't routed v6 through the Pi, no FORWARD rules needed.
+*filter
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+:OUTPUT ACCEPT [0:0]
+-A INPUT -i lo -j ACCEPT
+-A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A INPUT -p ipv6-icmp -j ACCEPT
+-A INPUT -p udp --dport 546 -j ACCEPT
+COMMIT

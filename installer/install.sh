@@ -141,7 +141,8 @@ apt full-upgrade -y
 # preseed iptables-persistent to skip the save-current-rules prompt
 echo "iptables-persistent iptables-persistent/autosave_v4 boolean false" | debconf-set-selections
 echo "iptables-persistent iptables-persistent/autosave_v6 boolean false" | debconf-set-selections
-apt install -y dhcpcd5 hostapd iptables-persistent curl ca-certificates
+apt install -y dhcpcd5 hostapd iptables-persistent curl ca-certificates \
+  fail2ban unattended-upgrades
 
 #
 # swap NetworkManager for dhcpcd
@@ -195,14 +196,16 @@ sysctl --system > /dev/null
 log_ok "IP forwarding on"
 
 #
-# iptables and NAT
+# iptables and NAT (v4 and v6)
 #
 log_section "firewall and NAT"
 install -d /etc/iptables
 install -m 644 "$CONFIGS_DIR/rules.v4" /etc/iptables/rules.v4
+install -m 644 "$CONFIGS_DIR/rules.v6" /etc/iptables/rules.v6
 # apply now too (so we can verify before reboot)
-iptables-restore < /etc/iptables/rules.v4
-log_ok "firewall rules loaded and saved"
+iptables-restore  < /etc/iptables/rules.v4
+ip6tables-restore < /etc/iptables/rules.v6
+log_ok "v4 + v6 firewall rules loaded and saved"
 
 #
 # WiFi country code
@@ -236,6 +239,52 @@ systemctl daemon-reload
 systemctl unmask hostapd
 systemctl enable hostapd
 log_ok "hostapd enabled"
+
+#
+# host hardening: SSH, fail2ban, auto security updates
+#
+log_section "host hardening"
+
+# SSH drop-in. If the current user has no authorized_keys file, skip
+# the PasswordAuthentication=no line so we don't lock them out.
+SSHD_DROPIN_SRC="$CONFIGS_DIR/sshd_freedom-pi.conf"
+SSHD_DROPIN_DST="/etc/ssh/sshd_config.d/99-freedom-pi.conf"
+install -d /etc/ssh/sshd_config.d
+
+# Who ran sudo? Fall back to root if someone ran this directly as root.
+REAL_USER="${SUDO_USER:-$USER}"
+REAL_HOME="$(getent passwd "$REAL_USER" | cut -d: -f6)"
+HAS_KEYS=0
+if [ -n "$REAL_HOME" ] && [ -s "$REAL_HOME/.ssh/authorized_keys" ]; then
+  HAS_KEYS=1
+fi
+
+install -m 644 "$SSHD_DROPIN_SRC" "$SSHD_DROPIN_DST"
+if [ "$HAS_KEYS" -eq 0 ]; then
+  log_warn "no authorized_keys for '$REAL_USER'. leaving password auth on so you don't get locked out."
+  sed -i 's/^PasswordAuthentication.*/# PasswordAuthentication no  # skipped: no authorized_keys/' "$SSHD_DROPIN_DST"
+else
+  log_ok  "key found for '$REAL_USER', enforcing key-only auth"
+fi
+
+# Sanity check before restarting. If the drop-in has a typo, back it out
+# instead of restarting sshd with a broken config.
+if sshd -t; then
+  systemctl restart ssh
+  log_ok "sshd hardened (PermitRootLogin=no, MaxAuthTries=3)"
+else
+  log_err "sshd -t failed, removing the drop-in"
+  rm -f "$SSHD_DROPIN_DST"
+fi
+
+# fail2ban ships with a working sshd jail out of the box on Debian.
+systemctl enable --now fail2ban
+log_ok "fail2ban enabled (sshd jail)"
+
+# Auto security patches.
+install -m 644 "$CONFIGS_DIR/20auto-upgrades" /etc/apt/apt.conf.d/20auto-upgrades
+systemctl enable --now unattended-upgrades
+log_ok "unattended-upgrades enabled"
 
 #
 # stash state for phase 2
@@ -279,10 +328,20 @@ cat << EOF
 next up: the Pi will reboot and phase 2 runs automatically. phase 2 starts
 hostapd, installs Pi-hole, and patches its config. takes about 5 minutes.
 
+${C_YELLOW}${C_BOLD}heads up on SSH:${C_RESET}
+  WAN SSH is off. After the reboot you reach the Pi over LAN or WiFi:
+    LAN (eth0):   ssh $REAL_USER@${LAN_GATEWAY}
+    WiFi:         ssh $REAL_USER@${WIFI_GATEWAY}
+  If you were SSH'd in via eth1 plugged into your existing switch, move
+  your cable to eth0 (built-in port) or join WiFi after the reboot.
+  Also: root SSH is off, MaxAuthTries is 3, fail2ban is watching.
+
 after phase 2, SSH back in and check:
-  systemctl is-active hostapd pihole-FTL dhcpcd
+  systemctl is-active hostapd pihole-FTL dhcpcd fail2ban unattended-upgrades
   ip addr show wlan0     # should show ${WIFI_GATEWAY}
   ip addr show eth0      # should show ${LAN_GATEWAY}
+  sudo fail2ban-client status sshd
+  sudo ip6tables -S      # v6 firewall active
 
 EOF
 

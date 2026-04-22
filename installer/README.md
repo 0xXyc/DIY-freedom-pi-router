@@ -62,17 +62,18 @@ If you SSH in over a wired path (UGREEN plugged into a LAN port upstream, DHCP'd
 
 1. Asks for SSID, WiFi password, country, subnets, Pi-hole admin password
 2. Finds your USB ethernet and WiFi radios by MAC
-3. `apt install` the packages (dhcpcd5, hostapd, iptables-persistent, curl)
+3. `apt install` the packages (dhcpcd5, hostapd, iptables-persistent, curl, fail2ban, unattended-upgrades)
 4. Kills NetworkManager, turns on dhcpcd
 5. Writes `.link` files to lock interface names (`eth1` UGREEN, `wlan0` Panda, `wlan_onboard` for built-in WiFi if you have a Panda)
 6. Writes dhcpcd static IPs
-7. Writes sysctl tuning
-8. Writes iptables rules and saves them
+7. Writes sysctl tuning and kernel hardening (rp_filter anti-spoof, SYN cookies, no ICMP redirects, etc.)
+8. Writes iptables v4 + v6 rules and saves them
 9. Sets your WiFi country code
 10. Writes hostapd config (Panda or built-in variant)
-11. Stages the phase 2 oneshot
-12. `update-initramfs` so the `.link` files kick in
-13. Reboots
+11. Host hardening: SSH drop-in (`PermitRootLogin no`, `MaxAuthTries 3`, key-only auth if `authorized_keys` exists), enables fail2ban sshd jail, enables unattended-upgrades
+12. Stages the phase 2 oneshot
+13. `update-initramfs` so the `.link` files kick in
+14. Reboots
 
 ### Phase 2 (about 5 min, hands off)
 
@@ -108,7 +109,10 @@ installer/
 │   ├── hostapd-builtin.conf       # built-in Pi WiFi variant
 │   ├── hostapd-default            # /etc/default/hostapd
 │   ├── unblock-rfkill.conf        # hostapd systemd drop-in (fixes USB WiFi soft block)
-│   └── rules.v4                   # iptables rules
+│   ├── rules.v4                   # iptables v4 rules (LAN+WiFi whitelist, WAN closed)
+│   ├── rules.v6                   # iptables v6 rules (default-deny, ICMPv6 + DHCPv6 only)
+│   ├── sshd_freedom-pi.conf       # sshd drop-in (PermitRootLogin no, MaxAuthTries 3)
+│   └── 20auto-upgrades            # enables unattended-upgrades
 └── phase2/
     ├── phase2.sh                  # runs on first boot
     └── freedom-pi-phase2.service  # oneshot unit, self-destructs
